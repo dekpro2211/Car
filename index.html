@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#16181b">
+<title>OBD Astra J</title>
+<style>
+/* VOICE: сухой рабочий инструмент механика, коротко и по делу
+   IDEA: щиток приборов — главная лампа Check Engine и коды под ней
+   PICTURE: большая лампа MIL, меняет цвет по состоянию
+   COLOUR+TYPE: графит, белый, жёлтый Opel как акцент; системный шрифт, моно для кодов
+   LAYOUT: одна колонка под телефон, вкладки: Двигатель / Блоки / Журнал */
+:root{color-scheme:light dark;--bg:light-dark(#f3f3f1,#121315);--card:light-dark(#fff,#1c1e21);--ink:light-dark(#16181b,#ececea);--mute:light-dark(#62666c,#9a9ea4);--line:light-dark(#dcdcd8,#2c2f33);--acc:#ffd400;--red:#d92d20;--amb:#f59e0b;--ok:#16a34a}
+*{box-sizing:border-box;min-width:0}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow-x:clip}
+button,input{font:inherit}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px max(4vw,14px);background:#16181b;color:#fff}
+.top b{font-size:17px}.top span{color:#b9bcc1;font-size:14px;margin-left:6px}
+.pill{font-size:13px;padding:4px 10px;border-radius:99px;background:#2c2f33;color:#ddd;white-space:nowrap}
+.pill.on{background:var(--ok);color:#fff}.pill.busy{background:var(--acc);color:#111}
+.hero{display:grid;grid-template-columns:150px minmax(0,1fr);gap:20px;align-items:center;padding:20px max(4vw,14px);background:var(--card);border-bottom:1px solid var(--line)}
+#lamp{width:150px;height:110px}#lamp path{fill:var(--line);transition:fill .3s}
+#lamp.mil path{fill:var(--amb);filter:drop-shadow(0 0 10px #f59e0b99)}#lamp.ok path{fill:var(--ok)}
+h1{font-size:26px;line-height:1.15;margin:0 0 4px}
+.sub{color:var(--mute);margin:0 0 12px;font-size:15px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{min-height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+button.pri{background:var(--acc);border-color:var(--acc);color:#111;font-weight:600}
+button.danger{border-color:var(--red);color:var(--red)}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible,input:focus-visible{outline:3px solid #2f6fed;outline-offset:2px}
+.facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:14px 0 0}
+.facts div{background:var(--bg);border-radius:8px;padding:6px 10px}
+.facts dt{font-size:13px;color:var(--mute)}.facts dd{margin:0;font-size:14px;font-family:ui-monospace,monospace;overflow-wrap:anywhere}
+.tabs{display:flex;gap:4px;padding:8px max(4vw,14px) 0;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:2}
+.tabs button{border:0;border-radius:8px 8px 0 0;background:none;color:var(--mute)}
+.tabs button.on{background:var(--card);color:var(--ink);font-weight:600;box-shadow:inset 0 -3px var(--acc)}
+.band{padding:16px max(4vw,14px) 40px;max-width:900px}
+.note{font-size:14px;color:var(--mute);background:var(--card);border-left:3px solid var(--acc);padding:10px 12px;border-radius:6px}
+.grp{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:12px}
+.grp h3{margin:0 0 6px;font-size:16px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.grp h3 small{font-weight:400;color:var(--mute);font-size:13px;font-family:ui-monospace,monospace}
+.dtc{display:grid;grid-template-columns:92px minmax(0,1fr);gap:4px 12px;padding:8px 0;border-top:1px solid var(--line)}
+.dtc code{font:600 16px ui-monospace,monospace;color:var(--red)}
+.dtc .d{font-size:15px}.dtc .m{grid-column:2;font-size:13px;color:var(--mute)}
+.dtc a{color:inherit}
+.clean{color:var(--ok);font-weight:600}.warn{color:var(--amb)}.err{color:var(--red)}
+.empty{color:var(--mute)}
+.mod .row{margin-top:8px}
+.st{font-size:13px;padding:2px 8px;border-radius:99px;background:var(--bg);color:var(--mute)}
+.st.y{background:#16a34a22;color:var(--ok)}.st.n{background:#d92d2015;color:var(--red)}
+input{min-height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:16px;flex:1 1 180px}
+pre{background:#0f1012;color:#cfe3cf;padding:12px;border-radius:10px;font-size:12.5px;max-height:60vh;overflow:auto;white-space:pre-wrap;word-break:break-all}
+details{margin-top:14px}summary{cursor:pointer;min-height:32px}
+.bar{position:fixed;left:12px;right:12px;bottom:12px;padding:12px 14px;border-radius:10px;background:#16181b;color:#fff;font-size:15px;z-index:9;box-shadow:0 6px 24px #0005}
+.bar.e{background:var(--red)}
+.dlg{position:fixed;inset:0;background:#0008;display:grid;place-items:center;padding:16px;z-index:10}
+.box{background:var(--card);border-radius:14px;padding:18px;max-width:460px}
+.box h2{margin:0 0 8px;font-size:20px}.box p{margin:0 0 16px;font-size:15px}
+@media(max-width:560px){.hero{grid-template-columns:minmax(0,1fr);justify-items:start;gap:6px}#lamp{width:110px;height:80px}.facts{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.facts div:last-child{grid-column:1/-1}.dtc{grid-template-columns:78px minmax(0,1fr)}}
+@media(prefers-reduced-motion:reduce){#lamp path{transition:none}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div><b>OBD-сканер</b><span>Opel Astra J</span></div>
+  <span id="st" class="pill">Не подключено</span>
+</header>
+
+<section class="hero">
+  <svg id="lamp" viewBox="0 0 120 80" aria-hidden="true"><path d="M34 12h34v8H56v6h20l9 9h9v-7h10v34H94v-7h-9l-11 13H40l-9-9h-7v11H14V36h10v-8h10v-8h-8v-8z"/></svg>
+  <div>
+    <h1 id="head">Подключи адаптер</h1>
+    <p class="sub" id="sub">ELM327 в розетку OBD под рулём, зажигание включено, двигатель можно не заводить.</p>
+    <div class="row">
+      <button id="bConn" class="pri">Подключить ELM327</button>
+      <button id="bDemo">Демо-режим</button>
+      <button id="bDisc" hidden>Отключить</button>
+    </div>
+    <dl class="facts">
+      <div><dt>Адаптер</dt><dd id="fElm">—</dd></div>
+      <div><dt>Бортсеть</dt><dd id="fV">—</dd></div>
+      <div><dt>VIN</dt><dd id="fVin">—</dd></div>
+    </dl>
+  </div>
+</section>
+
+<nav class="tabs">
+  <button data-t="eng" class="on">Двигатель</button>
+  <button data-t="mod">Блоки Opel</button>
+  <button data-t="log">Журнал</button>
+</nav>
+
+<main>
+<section id="t-eng" class="band tab">
+  <div class="row">
+    <button id="bRead" class="pri need" disabled>Прочитать ошибки</button>
+    <button id="bClear" class="danger need" disabled>Стереть ошибки</button>
+  </div>
+  <div id="engOut"><p class="empty">Здесь появятся коды двигателя: сохранённые, ожидающие и постоянные.</p></div>
+</section>
+
+<section id="t-mod" class="band tab" hidden>
+  <p class="note">Обычный ELM327 работает только на быстрой шине HS-CAN (контакты 6 и 14). На ней у Astra J двигатель, ABS/ESP, подушки и кузовной блок. Панель приборов, магнитола, климат и парктроник сидят на MS-CAN — для них нужен адаптер с переключателем HS/MS. Адреса блоков — типовые для GM/Opel; «Найти блоки» проверит, кто реально отвечает.</p>
+  <div class="row">
+    <button id="bScan" class="need" disabled>Найти блоки</button>
+    <button id="bAll" class="pri need" disabled>Ошибки всех блоков</button>
+  </div>
+  <div id="mods"></div>
+  <details>
+    <summary>Добавить блок по адресу</summary>
+    <div class="row" style="margin-top:8px">
+      <input id="addr" placeholder="Адрес запроса, напр. 24C" maxlength="3" autocomplete="off">
+      <button id="bAdd">Добавить</button>
+    </div>
+  </details>
+</section>
+
+<section id="t-log" class="band tab" hidden>
+  <div class="row">
+    <input id="cmd" placeholder="Команда: ATRV, 0100, 03…" autocomplete="off" autocapitalize="characters">
+    <button id="bSend" class="need" disabled>Отправить</button>
+    <button id="bCopy">Копировать журнал</button>
+  </div>
+  <p class="empty" style="font-size:14px">Если что-то не работает — скопируй журнал и пришли мне, по нему видно, что ответила машина.</p>
+  <pre id="log"></pre>
+</section>
+</main>
+
+<div id="dlg" class="dlg" hidden>
+  <div class="box" role="dialog" aria-modal="true" aria-labelledby="dT">
+    <h2 id="dT"></h2><p id="dB"></p>
+    <div class="row"><button id="dNo">Отмена</button><button id="dYes" class="danger">Стереть</button></div>
+  </div>
+</div>
+<div id="bar" class="bar" hidden></div>
+
+<script>
+{
+const $ = id => document.getElementById(id);
+const hex = (n, w = 2) => n.toString(16).toUpperCase().padStart(w, '0');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- журнал ---------- */
+const logLines = [];
+function log(dir, txt) {
+  logLines.push(new Date().toLocaleTimeString('de-DE') + ' ' + dir + ' ' + txt);
+  if (logLines.length > 3000) logLines.shift();
+  $('log').textContent = logLines.join('\n');
+  $('log').scrollTop = 1e9;
+}
+let barT;
+function say(msg, isErr) {
+  const b = $('bar'); b.textContent = msg; b.className = 'bar' + (isErr ? ' e' : ''); b.hidden = false;
+  clearTimeout(barT); barT = setTimeout(() => b.hidden = true, isErr ? 7000 : 3500);
+}
+
+/* ---------- транспорт: Bluetooth (Web Serial) ---------- */
+class SerialTransport {
+  constructor(port) { this.port = port; this.cb = null; this.alive = false; }
+  async open() {
+    await this.port.open({ baudRate: 38400 });
+    this.writer = this.port.writable.getWriter();
+    this.alive = true; this.loop();
+  }
+  async loop() {
+    const dec = new TextDecoder();
+    while (this.alive && this.port.readable) {
+      this.reader = this.port.readable.getReader();
+      try {
+        for (;;) { const { value, done } = await this.reader.read(); if (done) break; this.cb && this.cb(dec.decode(value, { stream: true })); }
+      } catch (e) { if (this.alive) log('!!', 'Ошибка чтения: ' + e.message); this.alive = false; }
+      finally { try { this.reader.releaseLock(); } catch (e) {} }
+    }
+  }
+  write(s) { return this.writer.write(new TextEncoder().encode(s)); }
+  async close() {
+    this.alive = false;
+    try { await this.reader?.cancel(); } catch (e) {}
+    try { this.writer.releaseLock(); } catch (e) {}
+    try { await this.port.close(); } catch (e) {}
+  }
+}
+
+/* ---------- транспорт: демо (имитация ELM327 + Astra J) ---------- */
+function seg(id, b) {           // нарезка ответа на кадры ISO-TP
+  if (b.length <= 7) return [id + ' ' + [b.length, ...b].map(x => hex(x)).join(' ')];
+  const out = [id + ' ' + [0x10 | (b.length >> 8), b.length & 255, ...b.slice(0, 6)].map(x => hex(x)).join(' ')];
+  for (let i = 6, sn = 1; i < b.length; i += 7, sn++) out.push(id + ' ' + [0x20 | (sn & 15), ...b.slice(i, i + 7)].map(x => hex(x)).join(' '));
+  return out;
+}
+class MockTransport {
+  constructor() { this.cb = null; this.h = '7DF'; this.buf = ''; this.clr = {}; }
+  async open() {} async close() {}
+  write(s) {
+    this.buf += s; let i;
+    while ((i = this.buf.indexOf('\r')) >= 0) {
+      const c = this.buf.slice(0, i).replace(/\s+/g, '').toUpperCase(); this.buf = this.buf.slice(i + 1);
+      const out = this.reply(c);
+      setTimeout(() => this.cb && this.cb(out.join('\r') + '\r\r>'), 30 + Math.random() * 60);
+    }
+    return Promise.resolve();
+  }
+  reply(c) {
+    if (c.startsWith('AT')) {
+      const a = c.slice(2);
+      if (a === 'Z' || a === 'I') return ['ELM327 v1.5 (демо)'];
+      if (a === 'RV') return ['12.4V'];
+      if (a.startsWith('SH')) { this.h = a.slice(2); return ['OK']; }
+      return ['OK'];
+    }
+    const V = [...'W0LPD6EB1CG000001'].map(ch => ch.charCodeAt(0)), K = this.clr, h = this.h;
+    if (c === '04' && h === '7DF') K.ecm = 1;
+    if ((c === '04' || c === '14FFFFFF') && h !== '7DF') K[h] = 1;
+    const T = {
+      '7DF': {
+        '0100': [...seg('7E8', [0x41, 0, 0xBE, 0x3F, 0xA8, 0x13]), ...seg('7EA', [0x41, 0, 0x98, 0x18, 0x80, 0x01])],
+        '0101': seg('7E8', K.ecm ? [0x41, 1, 0x00, 0x07, 0x65, 0x00] : [0x41, 1, 0x83, 0x07, 0x65, 0x04]),
+        '03': [...seg('7E8', K.ecm ? [0x43, 0] : [0x43, 3, 0x00, 0x16, 0x05, 0x97, 0x02, 0x99]), ...seg('7EA', [0x43, 0])],
+        '07': seg('7E8', [0x47, 0]),
+        '0A': seg('7E8', [0x4A, 1, 0x00, 0x16]),
+        '0902': seg('7E8', [0x49, 2, 1, ...V]),
+        '04': [...seg('7E8', [0x44]), ...seg('7EA', [0x44])]
+      },
+      '7E0': { '3E': seg('7E8', [0x7E]), '1902FF': seg('7E8', [0x7F, 0x19, 0x11]), '14FFFFFF': seg('7E8', [0x7F, 0x14, 0x11]), '04': seg('7E8', [0x44]),
+        'A98112': K['7E0'] ? ['5E8 81 00 00 00 FF'] : ['5E8 81 00 16 00 0A', '5E8 81 05 97 00 0A', '5E8 81 02 99 00 08', '5E8 81 00 00 00 FF'] },
+      '243': { '3E': seg('643', [0x7E]), '1902FF': seg('643', [0x7F, 0x19, 0x11]), '14FFFFFF': seg('643', [0x7F, 0x14, 0x11]), '04': seg('643', [0x44]),
+        'A98112': K['243'] ? ['543 81 00 00 00 FF'] : ['543 81 40 35 00 0A', '543 81 00 00 00 FF'] },
+      '247': { '3E': seg('647', [0x7F, 0x3E, 0x13]), '14FFFFFF': seg('647', [0x54]),
+        '1902FF': seg('647', K['247'] ? [0x59, 2, 0xFF] : [0x59, 2, 0xFF, 0x90, 0x52, 0x00, 0x09, 0xD0, 0x01, 0x00, 0x08]) },
+      '241': { '3E': seg('641', [0x7E]), '1902FF': seg('641', [0x7F, 0x19, 0x11]), '14FFFFFF': seg('641', [0x7F, 0x14, 0x11]), '04': seg('641', [0x44]), 'A98112': ['541 81 00 00 00 FF'] },
+      '24A': { '3E': seg('64A', [0x7E]), '1902FF': seg('64A', [0x7F, 0x19, 0x11]), 'A98112': ['54A 81 00 00 00 FF'] }
+    };
+    return (T[h] && T[h][c]) || ['NO DATA'];
+  }
+}
+
+/* ---------- протокол ELM327 ---------- */
+class Elm {
+  constructor(tr) { this.tr = tr; this.buf = ''; this.wait = null; this.q = Promise.resolve(); tr.cb = d => { this.buf += d; this.check(); }; }
+  check() {
+    const i = this.buf.indexOf('>');
+    if (i < 0 || !this.wait) return;
+    const s = this.buf.slice(0, i); this.buf = this.buf.slice(i + 1);
+    const w = this.wait; this.wait = null; clearTimeout(w.t); w.res(s);
+  }
+  cmd(c, ms = 4000) { const p = this.q.then(() => this.run(c, ms)); this.q = p.catch(() => {}); return p; }
+  run(c, ms) {
+    return new Promise((res, rej) => {
+      this.buf = ''; log('→', c);
+      const bare = c.replace(/\s/g, '');
+      this.wait = {
+        res: s => {
+          const lines = s.split(/[\r\n]+/).map(x => x.trim()).filter(x => x && x.replace(/\s/g, '') !== bare);
+          log('←', lines.join(' | ') || '(пусто)'); res(lines);
+        },
+        t: setTimeout(() => { this.wait = null; log('!!', 'нет ответа на ' + c); rej(new Error('Адаптер не ответил на ' + c)); }, ms)
+      };
+      this.tr.write(c + '\r').catch(e => { this.wait = null; rej(e); });
+    });
+  }
+}
+
+function frames(lines) {
+  const out = [];
+  for (const l of lines) {
+    const t = l.split(/\s+/);
+    if (t.length < 2 || !/^[0-9A-F]{3}$/i.test(t[0]) || !t.slice(1).every(x => /^[0-9A-F]{2}$/i.test(x))) continue;
+    out.push({ id: t[0].toUpperCase(), b: t.slice(1).map(x => parseInt(x, 16)) });
+  }
+  return out;
+}
+function isotp(fr) {           // сборка многокадровых ответов по каждому ID
+  const by = {}, res = {};
+  for (const f of fr) (by[f.id] ??= []).push(f.b);
+  for (const id in by) {
+    const msgs = []; let cur = null, need = 0;
+    for (const b of by[id]) {
+      const t = b[0] >> 4;
+      if (t === 0) { msgs.push(b.slice(1, 1 + (b[0] & 15))); cur = null; }
+      else if (t === 1) { need = ((b[0] & 15) << 8) | b[1]; cur = b.slice(2); }
+      else if (t === 2 && cur) cur.push(...b.slice(1));
+      if (cur && cur.length >= need) { msgs.push(cur.slice(0, need)); cur = null; }
+    }
+    res[id] = msgs;
+  }
+  return res;
+}
+const dtcCode = (a, b) => 'PCBU'[a >> 6] + ((a >> 4) & 3) + hex(a & 15, 1) + hex(b >> 4, 1) + hex(b & 15, 1);
+
+/* ---------- расшифровка кодов ---------- */
+const DESC = {
+  P0010:'Фазорегулятор впускного распредвала — цепь',P0011:'Впускной распредвал: опережение / не держит заданное положение',
+  P0013:'Фазорегулятор выпускного распредвала — цепь',P0014:'Выпускной распредвал: опережение / не держит заданное положение',
+  P0016:'Рассогласование коленвала и впускного распредвала (часто растяжение цепи ГРМ)',P0017:'Рассогласование коленвала и выпускного распредвала (часто растяжение цепи ГРМ)',
+  P0030:'Подогрев лямбда-зонда 1 (до катализатора) — цепь',P0036:'Подогрев лямбда-зонда 2 (после катализатора) — цепь',
+  P0033:'Клапан перепуска турбины (рециркуляции) — цепь',P0045:'Управление давлением наддува (wastegate) — цепь',
+  P0101:'Датчик расхода воздуха — сигнал вне диапазона',P0106:'Датчик давления во впуске (MAP) — сигнал вне диапазона',
+  P0113:'Датчик температуры впускного воздуха — высокий сигнал',P0117:'Датчик температуры ОЖ — низкий сигнал',P0118:'Датчик температуры ОЖ — высокий сигнал',
+  P0128:'ОЖ не прогревается до рабочей температуры (термостат)',P0130:'Лямбда-зонд 1 — цепь',P0133:'Лямбда-зонд 1 — медленный отклик',P0136:'Лямбда-зонд 2 — цепь',
+  P0171:'Слишком бедная смесь',P0172:'Слишком богатая смесь',P0234:'Избыточное давление наддува',P0236:'Датчик давления наддува — сигнал вне диапазона',
+  P0243:'Клапан управления наддувом — цепь',P0299:'Недостаточное давление наддува',
+  P0300:'Пропуски зажигания в случайных цилиндрах',P0301:'Пропуски зажигания, цилиндр 1',P0302:'Пропуски зажигания, цилиндр 2',P0303:'Пропуски зажигания, цилиндр 3',P0304:'Пропуски зажигания, цилиндр 4',
+  P0325:'Датчик детонации — цепь',P0335:'Датчик положения коленвала — цепь',P0340:'Датчик положения распредвала — цепь',
+  P0351:'Катушка зажигания A — цепь',P0352:'Катушка зажигания B — цепь',P0353:'Катушка зажигания C — цепь',P0354:'Катушка зажигания D — цепь',
+  P0420:'Эффективность катализатора ниже нормы',P0441:'Система улавливания паров топлива — неверный расход продувки',P0443:'Клапан продувки адсорбера — цепь',
+  P0496:'Продувка адсорбера без команды',P0506:'Обороты ХХ ниже нормы',P0507:'Обороты ХХ выше нормы',P0562:'Низкое напряжение бортсети',
+  P0597:'Нагреватель термостата — обрыв цепи',P0598:'Нагреватель термостата — низкий сигнал',P0599:'Нагреватель термостата — высокий сигнал',
+  P0606:'Внутренняя ошибка блока управления двигателем',P0700:'Есть ошибка в блоке коробки передач',P1101:'Система впуска воздуха — характеристика (GM)',
+  P2088:'Клапан фазорегулятора A — низкий сигнал',P2089:'Клапан фазорегулятора A — высокий сигнал',P2096:'Коррекция после катализатора — бедная',P2097:'Коррекция после катализатора — богатая',
+  P2101:'Привод дроссельной заслонки — характеристика',P2135:'Датчики положения дросселя A/B — расхождение',P2227:'Датчик атмосферного давления — сигнал вне диапазона',
+  P2261:'Клапан перепуска турбины (рециркуляции) — механическая неисправность',
+  C0035:'Датчик скорости колеса — передний левый',C0040:'Датчик скорости колеса — передний правый',C0045:'Датчик скорости колеса — задний левый',C0050:'Датчик скорости колеса — задний правый',
+  U0073:'Шина CAN отключена',U0100:'Нет связи с блоком двигателя',U0101:'Нет связи с блоком коробки',U0121:'Нет связи с ABS',U0140:'Нет связи с кузовным блоком',U0151:'Нет связи с блоком подушек'
+};
+function describe(code) {
+  if (DESC[code]) return DESC[code];
+  const L = code[0], d = code[1], s = code[2];
+  if (L === 'P') {
+    if (d === '1' || d === '3') return 'Код производителя (GM/Opel)';
+    return ({ '0': 'Топливо и воздух', '1': 'Топливо и воздух', '2': 'Топливо и воздух (форсунки)', '3': 'Зажигание / пропуски', '4': 'Системы снижения выбросов', '5': 'Скорость, холостой ход, бортсеть', '6': 'Блок управления, выходные цепи', '7': 'Коробка передач', '8': 'Коробка передач', 'A': 'Гибридный привод' }[s] || 'Силовой агрегат');
+  }
+  return ({ C: 'Шасси (ABS, ESP, рулевое)', B: 'Кузов (подушки, свет, комфорт)', U: 'Связь между блоками' }[L]) + (d === '0' ? '' : ', код производителя');
+}
+function dtcRow(code, meta) {
+  const q = encodeURIComponent('Opel Astra J ' + code);
+  return `<div class="dtc"><code>${code}</code><div class="d">${esc(describe(code))}</div><div class="m">${meta ? esc(meta) + ' · ' : ''}<a href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">искать</a></div></div>`;
+}
+
+/* ---------- состояние и интерфейс ---------- */
+let elm = null, tr = null, busy = false, vinDone = false;
+function ui() {
+  const on = !!elm;
+  document.querySelectorAll('.need').forEach(b => b.disabled = !on || busy);
+  $('bConn').hidden = $('bDemo').hidden = on; $('bDisc').hidden = !on;
+  document.querySelectorAll('.mod button').forEach(b => b.disabled = !on || busy);
+}
+function status(txt, cls) { const s = $('st'); s.textContent = txt; s.className = 'pill ' + (cls || ''); }
+async function job(label, fn) {
+  if (busy || !elm) return;
+  busy = true; ui(); status(label + '…', 'busy');
+  try { await fn(); } catch (e) { say(e.message, true); log('!!', e.message); }
+  busy = false; if (elm) status(tr instanceof MockTransport ? 'Демо' : 'Подключено', 'on'); ui();
+}
+function ask2(title, body) {
+  return new Promise(res => {
+    $('dT').textContent = title; $('dB').textContent = body; $('dlg').hidden = false; $('dYes').focus();
+    const done = v => { $('dlg').hidden = true; $('dYes').onclick = $('dNo').onclick = null; res(v); };
+    $('dYes').onclick = () => done(true); $('dNo').onclick = () => done(false);
+  });
+}
+
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.tab').forEach(t => t.hidden = t.id !== 't-' + b.dataset.t);
+});
+
+/* ---------- подключение ---------- */
+async function start(transport) {
+  tr = transport; elm = new Elm(tr);
+  busy = true; ui(); status('Подключение…', 'busy');
+  try {
+    await tr.open();
+    try { await elm.cmd('ATZ', 6000); } catch (e) { await elm.cmd('ATZ', 6000); }
+    for (const c of ['ATE0', 'ATL0', 'ATS1', 'ATH1', 'ATAT1', 'ATSP6']) await elm.cmd(c);
+    $('fElm').textContent = (await elm.cmd('ATI')).join(' ') || '?';
+    $('fV').textContent = (await elm.cmd('ATRV')).join(' ') || '?';
+    const r = isotp(frames(await elm.cmd('0100', 10000)));
+    if (!Object.keys(r).length) throw new Error('Адаптер на связи, но машина молчит. Включи зажигание и попробуй ещё раз.');
+    $('head').textContent = 'Связь с машиной есть'; $('sub').textContent = 'Отвечают блоки: ' + Object.keys(r).map(ecuName).join(', ');
+    busy = false; status(tr instanceof MockTransport ? 'Демо' : 'Подключено', 'on'); ui();
+    renderMods();
+  } catch (e) {
+    busy = false; say(e.message, true); log('!!', e.message); await stop();
+  }
+}
+async function stop() {
+  const t = tr; elm = null; tr = null; vinDone = false;
+  if (t) await t.close();
+  status('Не подключено'); ui(); renderMods();
+}
+$('bConn').onclick = async () => {
+  if (!('serial' in navigator)) { say('Этот браузер не умеет Web Serial. Нужен свежий Chrome на Android (или Chrome/Edge на компьютере), страница должна быть открыта по https.', true); return; }
+  let port;
+  try { port = await navigator.serial.requestPort(); } catch (e) { say('Адаптер не выбран. Сначала соедини ELM327 в настройках Bluetooth телефона (PIN обычно 1234 или 0000).', true); return; }
+  port.addEventListener('disconnect', () => { if (tr && tr.port === port) { say('Адаптер отключился', true); stop(); } });
+  start(new SerialTransport(port));
+};
+$('bDemo').onclick = () => start(new MockTransport());
+$('bDisc').onclick = () => stop();
+
+/* ---------- двигатель (стандартный OBD-II) ---------- */
+const ECU = { '7E8': 'Двигатель', '7E9': 'Блок 7E9', '7EA': 'Коробка передач', '7EB': 'Блок 7EB' };
+const ecuName = id => ECU[id] || 'Блок ' + id;
+async function obdMode() { for (const c of ['ATSH7DF', 'ATCRA', 'ATAR', 'ATST32']) { const r = await elm.cmd(c); if (r.includes('?')) log('!!', c + ' не поддерживается'); } }
+function obdDtcs(m) { let d = m.slice(1); if (d.length % 2) d = d.slice(1); const r = []; for (let i = 0; i + 1 < d.length; i += 2) if (d[i] || d[i + 1]) r.push(dtcCode(d[i], d[i + 1])); return r; }
+
+async function readEngine() {
+  await obdMode();
+  const res = {}; let mil = null, cnt = 0;
+  const m1 = isotp(frames(await elm.cmd('0101', 5000)));
+  for (const id in m1) for (const m of m1[id]) if (m[0] === 0x41 && m[1] === 1 && id === '7E8') { mil = !!(m[2] & 0x80); cnt = m[2] & 0x7F; }
+  for (const [mode, label] of [['03', 'Сохранённые'], ['07', 'Ожидающие (ещё не подтверждены)'], ['0A', 'Постоянные (уйдут сами после ремонта)']]) {
+    const r = isotp(frames(await elm.cmd(mode, 6000)));
+    for (const id in r) for (const m of r[id]) if (m[0] === parseInt(mode, 16) + 0x40) ((res[id] ??= {})[label] ??= []).push(...obdDtcs(m));
+  }
+  if (!vinDone) {
+    const v = isotp(frames(await elm.cmd('0902', 6000).catch(() => [])));
+    for (const id in v) for (const m of v[id]) if (m[0] === 0x49 && m[1] === 2) { $('fVin').textContent = String.fromCharCode(...m.slice(3).filter(x => x > 32 && x < 127)); vinDone = true; }
+  }
+  const total = Object.values(res).flatMap(o => Object.values(o).flat()).length;
+  const lamp = $('lamp'); lamp.classList.toggle('mil', !!mil); lamp.classList.toggle('ok', mil === false && total === 0);
+  $('head').textContent = mil ? 'Check Engine горит' : total ? 'Есть записи об ошибках' : 'Ошибок нет';
+  $('sub').textContent = mil === null ? 'Статус лампы не получен' : `Лампа ${mil ? 'горит' : 'не горит'} · подтверждённых кодов по данным блока: ${cnt}`;
+  let html = '';
+  const ids = Object.keys(res).sort();
+  if (!ids.length) html = '<div class="grp"><p class="clean">Блоки ответили — кодов неисправностей нет.</p></div>';
+  for (const id of ids) {
+    html += `<div class="grp"><h3>${ecuName(id)} <small>${id}</small></h3>`;
+    let any = false;
+    for (const label in res[id]) {
+      const codes = [...new Set(res[id][label])];
+      if (!codes.length) continue; any = true;
+      html += `<p style="margin:8px 0 0;font-weight:600">${label}</p>` + codes.map(c => dtcRow(c)).join('');
+    }
+    if (!any) html += '<p class="clean">Кодов нет</p>';
+    html += '</div>';
+  }
+  $('engOut').innerHTML = html;
+}
+$('bRead').onclick = () => job('Чтение ошибок', readEngine);
+
+$('bClear').onclick = async () => {
+  if (!await ask2('Стереть ошибки двигателя?', 'Двигатель заглушён, зажигание включено. Вместе с кодами сбросится готовность систем (Readiness): перед AU/TÜV нужно будет проездить пару дней. Постоянные коды так не стираются — они уйдут сами, когда блок убедится, что всё исправно.')) return;
+  job('Стирание', async () => {
+    await obdMode();
+    const r = isotp(frames(await elm.cmd('04', 8000)));
+    const ok = Object.values(r).flat().some(m => m[0] === 0x44);
+    say(ok ? 'Ошибки стёрты. Если неисправность осталась — код вернётся.' : 'Блок не подтвердил стирание — см. журнал', !ok);
+    if (ok) await readEngine();
+  });
+};
+
+/* ---------- блоки Opel (GMLAN / UDS) ---------- */
+const MODS = [
+  { req: 0x7E0, n: 'Двигатель (ECM)' },
+  { req: 0x7E2, n: 'Автоматическая коробка (TCM)' },
+  { req: 0x243, n: 'ABS / ESP (EBCM)' },
+  { req: 0x247, n: 'Подушки безопасности (SDM)' },
+  { req: 0x241, n: 'Кузовной блок (BCM)' }
+];
+MODS.forEach(m => m.s = '');
+const rsp = r => r >= 0x7E0 ? r + 8 : r + 0x400;       // физический ответ: 7E0→7E8, 243→643
+const uud = r => r >= 0x7E0 ? r + 8 - 0x200 : r + 0x300; // ответ GMLAN без ISO-TP: 7E0→5E8, 243→543
+async function target(req, light) {
+  const R = hex(rsp(req), 3);
+  const list = ['ATSH' + hex(req, 3), 'ATCRAX' + R.slice(1)];
+  if (!light) list.push('ATFCSH' + hex(req, 3), 'ATFCSD300000', 'ATFCSM1', 'ATST64');
+  for (const c of list) { const r = await elm.cmd(c); if (r.includes('?')) log('!!', c + ' не поддерживается адаптером'); }
+}
+async function ask(req, cmd, ms = 4000) {
+  const fr = frames(await elm.cmd(cmd, ms)), R = hex(rsp(req), 3), U = hex(uud(req), 3);
+  return { phys: isotp(fr.filter(f => f.id === R))[R] || [], uudt: fr.filter(f => f.id === U).map(f => f.b) };
+}
+async function modDtcs(m) {
+  await target(m.req);
+  let a = await ask(m.req, '19 02 FF');                 // UDS
+  const pos = a.phys.find(x => x[0] === 0x59);
+  if (pos) {
+    const list = [];
+    for (let i = 3; i + 3 < pos.length; i += 4) {
+      if (!(pos[i] | pos[i + 1])) continue;
+      const st = pos[i + 3], f = [];
+      if (st & 1) f.push('активна сейчас'); if (st & 8) f.push('подтверждена'); else if (st & 4) f.push('ожидающая');
+      list.push({ code: dtcCode(pos[i], pos[i + 1]), meta: (pos[i + 2] ? 'тип ' + hex(pos[i + 2]) + ' · ' : '') + (f.join(', ') || 'в памяти') });
+    }
+    return { ok: true, list, proto: 'UDS' };
+  }
+  const b = await ask(m.req, 'A9 81 12', 5000);         // GMLAN
+  const fr = b.uudt.filter(x => x[0] === 0x81);
+  if (fr.length) {
+    const list = fr.filter(x => x[1] | x[2]).map(x => ({ code: dtcCode(x[1], x[2]), meta: (x[3] ? 'тип ' + hex(x[3]) + ' · ' : '') + 'статус ' + hex(x[4] ?? 0) }));
+    return { ok: true, list, proto: 'GMLAN' };
+  }
+  if (!a.phys.length && !b.phys.length) return { ok: false, msg: 'Блок не отвечает (нет в машине или сидит на MS-CAN)' };
+  const n = [...a.phys, ...b.phys].find(x => x[0] === 0x7F);
+  return { ok: false, msg: n ? 'Блок отклонил запрос, код ' + hex(n[2]) : 'Непонятный ответ — пришли журнал' };
+}
+async function modClear(m) {
+  await target(m.req);
+  if ((await ask(m.req, '14 FF FF FF')).phys.some(x => x[0] === 0x54)) return true;
+  return (await ask(m.req, '04')).phys.some(x => x[0] === 0x44);
+}
+function renderMods() {
+  $('mods').innerHTML = MODS.map((m, i) => {
+    const st = m.s === 'y' ? '<span class="st y">отвечает</span>' : m.s === 'n' ? '<span class="st n">нет ответа</span>' : '<span class="st">не проверен</span>';
+    let body = '';
+    if (m.r) body = m.r.ok ? (m.r.list.length ? m.r.list.map(d => dtcRow(d.code, d.meta)).join('') : '<p class="clean">Кодов нет</p>') + `<p class="empty" style="font-size:13px;margin:6px 0 0">Протокол: ${m.r.proto}</p>` : `<p class="err">${esc(m.r.msg)}</p>`;
+    return `<div class="grp mod"><h3>${esc(m.n)} ${st}</h3><small class="empty" style="font-family:ui-monospace,monospace;font-size:13px">${hex(m.req, 3)} → ${hex(rsp(m.req), 3)}</small>${body}
+      <div class="row"><button data-r="${i}" ${elm && !busy ? '' : 'disabled'}>Ошибки</button><button class="danger" data-c="${i}" ${elm && !busy ? '' : 'disabled'}>Стереть</button></div></div>`;
+  }).join('');
+}
+$('mods').onclick = async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.r) { const m = MODS[+b.dataset.r]; job(m.n, async () => { m.r = await modDtcs(m); m.s = m.r.ok ? 'y' : m.s; renderMods(); }); }
+  if (b.dataset.c) {
+    const m = MODS[+b.dataset.c];
+    if (!await ask2('Стереть: ' + m.n + '?', 'Зажигание включено, двигатель заглушён. Если неисправность не устранена, код вернётся. Лампа подушек или ABS погаснет только когда причина убрана.')) return;
+    job('Стирание', async () => { const ok = await modClear(m); say(ok ? 'Коды стёрты' : 'Блок не подтвердил стирание — см. журнал', !ok); m.r = await modDtcs(m); renderMods(); });
+  }
+};
+$('bAll').onclick = () => job('Опрос блоков', async () => {
+  for (const m of MODS) { m.r = await modDtcs(m); m.s = m.r.ok ? 'y' : 'n'; renderMods(); }
+});
+$('bScan').onclick = () => job('Поиск блоков', async () => {
+  await elm.cmd('ATST19');
+  const reqs = [0x7E0, 0x7E1, 0x7E2];
+  for (let r = 0x240; r <= 0x25F; r++) reqs.push(r);
+  let found = 0;
+  for (const req of reqs) {
+    status('Поиск ' + hex(req, 3) + '…', 'busy');
+    await target(req, true);
+    const a = await ask(req, '3E', 1500);
+    let m = MODS.find(x => x.req === req);
+    if (a.phys.length) { found++; if (!m) MODS.push(m = { req, n: 'Блок ' + hex(req, 3) }); m.s = 'y'; }
+    else if (m) m.s = 'n';
+    renderMods();
+  }
+  say('Найдено блоков: ' + found);
+});
+$('bAdd').onclick = () => {
+  const v = parseInt($('addr').value.trim(), 16);
+  if (!(v >= 0x100 && v <= 0x7FF)) { say('Нужен адрес из трёх hex-цифр, например 24C', true); return; }
+  if (!MODS.some(m => m.req === v)) MODS.push({ req: v, n: 'Блок ' + hex(v, 3), s: '' });
+  $('addr').value = ''; renderMods();
+};
+
+/* ---------- терминал ---------- */
+$('bSend').onclick = () => { const c = $('cmd').value.trim().toUpperCase(); if (c) job('Команда', () => elm.cmd(c, 8000)); };
+$('cmd').onkeydown = e => { if (e.key === 'Enter') $('bSend').click(); };
+$('bCopy').onclick = async () => { try { await navigator.clipboard.writeText(logLines.join('\n')); say('Журнал скопирован'); } catch (e) { say('Не удалось скопировать — выдели текст вручную', true); } };
+
+renderMods(); ui();
+if (!('serial' in navigator)) $('sub').textContent = 'Этот браузер не умеет подключаться к Bluetooth-адаптеру. Открой страницу в свежем Chrome на Android. Демо-режим работает везде.';
+}
+</script>
+</body>
+</html>
